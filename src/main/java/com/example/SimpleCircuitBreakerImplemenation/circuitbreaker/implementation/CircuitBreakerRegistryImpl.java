@@ -2,6 +2,7 @@ package com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.implementat
 
 import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.CircuitBreaker;
 import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.CircuitBreakerRegistry;
+import org.springframework.context.annotation.Configuration;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -9,6 +10,7 @@ import java.util.Map;
 /**
  * @author rishi
  */
+@Configuration
 public class CircuitBreakerRegistryImpl implements CircuitBreakerRegistry {
 
   private Map<String, CircuitBreaker> circuitBreakerMap;
