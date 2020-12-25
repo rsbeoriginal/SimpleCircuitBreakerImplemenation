@@ -4,10 +4,14 @@ import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.CircuitBreak
 import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.CircuitBreakerEvent;
 import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.CircuitBreakerEventState;
 import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.CircuitBreakerState;
+import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.exception.MyTimeoutException;
 import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.exception.PermissionNotAcquiredException;
 
+import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
+import java.util.function.Supplier;
 
 /**
  * @author rishi
@@ -23,6 +27,8 @@ public class CountBasedCircuitBreakerImpl implements CircuitBreaker {
   private Long waitDurationInOpenState = Long.valueOf(1000 * 60 * 5);
   private int successCountInQueue = 0;
   private int failCountInQueue = 0;
+  private List<Class<? extends Exception>> failureExceptionList =
+      Arrays.asList(MyTimeoutException.class);
 
   public CountBasedCircuitBreakerImpl(String name) {
     this.name = name;
@@ -61,6 +67,25 @@ public class CountBasedCircuitBreakerImpl implements CircuitBreaker {
     addEventToQueue(CircuitBreakerEventState.FAIL);
   }
 
+  @Override
+  public <T> T performOperation(Supplier<T> computedResponse, Supplier<T> defaultResponse) {
+    try {
+      acquirePermission();
+      T computedValue = computedResponse.get();
+      onSuccess();
+      return computedValue;
+    } catch (PermissionNotAcquiredException e) {
+      return defaultResponse.get();
+    } catch (Exception e){
+      if (failureExceptionList.contains(e.getClass())){
+        onError();
+      } else {
+        onSuccess();
+      }
+      throw e;
+    }
+  }
+
   private CircuitBreakerEvent createCircuitBreakerEvent(CircuitBreakerEventState state) {
     return CircuitBreakerEvent.builder().state(state).timestamp(System.currentTimeMillis()).build();
   }
@@ -83,7 +108,7 @@ public class CountBasedCircuitBreakerImpl implements CircuitBreaker {
   }
 
   private void computeCurrentState() {
-    int currentFailureRate = (failCountInQueue / windowSize) * 100;
+    int currentFailureRate = (failCountInQueue * 100 / windowSize);
     if (currentFailureRate >= failureRateThreshold) {
       updateCurrentState(CircuitBreakerState.OPEN);
       latestTimestampInOpenState = System.currentTimeMillis();

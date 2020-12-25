@@ -2,11 +2,13 @@ package com.example.SimpleCircuitBreakerImplemenation.controller;
 
 import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.CircuitBreaker;
 import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.CircuitBreakerRegistry;
-import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.exception.PermissionNotAcquiredException;
+import com.example.SimpleCircuitBreakerImplemenation.circuitbreaker.exception.MyTimeoutException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Objects;
 
 /**
  * @author rishi
@@ -19,27 +21,31 @@ public class TestController {
 
   private CircuitBreaker circuitBreaker;
 
-  public TestController() {
+  public TestController(CircuitBreakerRegistry circuitBreakerRegistry) {
+    this.circuitBreakerRegistry = circuitBreakerRegistry;
     circuitBreaker = circuitBreakerRegistry.circuitBreaker("TestCircuitBreaker");
   }
 
   @GetMapping
-  public String testEndpoint(@RequestParam("success") Boolean success) {
+  public String testEndpoint(@RequestParam(value = "success", required = false) Boolean success) {
     try {
-      circuitBreaker.acquirePermission();
-      return computedResponse(success);
-    } catch (PermissionNotAcquiredException e) {
-      return defaultResponse();
+      return circuitBreaker.performOperation(() -> computedResponse(success), this::defaultResponse);
+    } catch (Exception e){
+      return e.getMessage();
     }
   }
 
   private String computedResponse(Boolean success) {
-    if (success) {
-      circuitBreaker.onSuccess();
-      return "Success response";
+
+    if (Objects.nonNull(success)) {
+      if (success) {
+        circuitBreaker.onSuccess();
+        return "Success response";
+      } else {
+        throw new MyTimeoutException("Failure in Circuit Breaker");
+      }
     } else {
-      circuitBreaker.onError();
-      return "Error response";
+      throw new RuntimeException("Not a failure in Circuit Breaker");
     }
   }
 
